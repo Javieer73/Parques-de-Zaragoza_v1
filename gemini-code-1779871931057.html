@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visor de Parques y Jardines | Zaragoza</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --primary-color: #2E7D32;
+            --secondary-color: #81C784;
+            --bg-color: #f4f7f6;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        #map {
+            flex: 2;
+            height: 100%;
+            border-right: 2px solid #ddd;
+        }
+
+        .sidebar {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            background: white;
+            min-width: 350px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border-color: var(--secondary-color);
+        }
+
+        .card h2 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+        }
+
+        .card p {
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: var(--secondary-color);
+            color: white;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🌳 Visor de Parques y Jardines | Zaragoza</h1>
+    </header>
+
+    <div class="container">
+        <div id="map"></div>
+        <div class="sidebar" id="park-list">
+            </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 1. Base de datos ampliada extraída de tu CSV original
+        const parksData = [
+            { title: "La Rosaleda (Parque José Antonio Labordeta)", address: "Paseo Isabel la Católica, 75", district: "Universidad", lat: 41.630370, lng: -0.898930, description: "Espacio creado en 1940 imitando el estilo de los jardines europeos de corte romántico. Renovado en 2022 con 80 variedades de rosas." },
+            { title: "Parque Lineal", address: "Jose María Castro y Calvo", district: "Miralbueno", lat: 41.658372, lng: -0.930471, description: "Zona verde y parque en el distrito de Miralbueno." },
+            { title: "Parque de Avicebrón", address: "C/ Doctor Muñoz Fernandez", district: "Delicias", lat: 41.642040, lng: -0.913595, description: "Jardín no muy extenso, con arbolado ya consolidado de frondosas y coníferas surcados por caminos enarenados." },
+            { title: "Parque Villafeliche (Antiguo Canódromo)", address: "Salvador de Madariaga", district: "Casco Histórico", lat: 41.648531, lng: -0.874219, description: "Parque que da continuación al Parque del Lineal del Azud. Cuenta con una amplia gama de especies arbóreas." },
+            { title: "Parque Pinares de la C/ Oviedo", address: "C/ Oviedo", district: "Torrero", lat: 41.625776, lng: -0.884220, description: "Extensión de unos 20.000 m2 de pinar dispuesto en alta densidad con claro central y pistas de petanca." },
+            { title: "Parque Teresa Serrato", address: "C/ Castilla - C/ Álava", district: "Delicias", lat: 41.643136, lng: -0.910826, description: "Parque de pequeña superficie dedicado a Teresa Serrato, con busto conmemorativo y zona de arbolado." },
+            { title: "Parque Torre Ramona", address: "C/ María de Aragón, sn", district: "Las Fuentes", lat: 41.643169, lng: -0.862229, description: "Inaugurado en 1983. Ocupa una superficie en forma de L con distintas zonas a diferentes niveles y lago-estanque triangular." },
+            { title: "Parque Valdefierro", address: "Valdefierro", district: "Oliver-Valdefierro", lat: 41.639262, lng: -0.932069, description: "Parque con una superficie ajardinada de unos 13.000 m2 y un entramado de caminos." },
+            { title: "Jardines Jesús Gracia", address: "C/ Carmelo Betore Bergua", district: "El Rabal", lat: 41.655374, lng: -0.858457, description: "Zonas de paseo y descanso al aire libre en la zona del Rabal." },
+            { title: "Parque Clemente Mateo", address: "C/ Canarias", district: "Casetas", lat: 41.719637, lng: -1.031703, description: "Instalación deportiva elemental y parque en el barrio de Casetas." },
+            { title: "Parque del Respeto", address: "Avda. de Ranillas", district: "Actur - Rey Fernando", lat: 41.669898, lng: -0.895301, description: "Parque de Zaragoza situado en el área del Actur." },
+            { title: "Parque Caprichos de Goya", address: "Avda. Academia Gral. Militar", district: "El Rabal", lat: 41.677973, lng: -0.871426, description: "Parque en la margen izquierda del río Ebro con arbolado muy joven y zona de juegos infantiles." },
+            { title: "Parque Castillo Palomar", address: "C/ Rioja - Avda. Navarra", district: "Delicias", lat: 41.655628, lng: -0.912007, description: "Parque situado en el barrio de Delicias con vegetación de gran porte formada principalmente por pinos y red de caminos asfaltados." },
+            { title: "Jardines de Al Andalus", address: "Andador Gutierrez Mellado", district: "Universidad", lat: 41.639439, lng: -0.911269, description: "Parque de forma rectangular, atravesado por una red de caminos enarenados." },
+            { title: "Parque de Casetas", address: "Bº Casetas", district: "Casetas", lat: 41.719706, lng: -1.029042, description: "Zona ajardinada en Casetas atravesada por caminos que forman figuras geométricas, cuenta con pista polideportiva." },
+            { title: "Parque de los Incrédulos", address: "Vía Ibérica", district: "Casablanca", lat: 41.629425, lng: -0.909601, description: "Parque mediano junto al Canal Imperial de Aragón con vegetación muy consolidada, sobre todo coníferas." },
+            { title: "Parque de Montañana", address: "Bº Montañana", district: "Montañana", lat: 41.695562, lng: -0.817022, description: "Pequeña zona ajardinada que cuenta con una fuente central, pista de petanca y juegos infantiles." },
+            { title: "Parque Delicias", address: "Vía Universitas", district: "Delicias", lat: 41.648425, lng: -0.908497, description: "Inaugurado en 1995 en los terrenos del antiguo Hospital Psiquiátrico. Cuenta con más de 1.500 árboles y varios estanques." },
+            { title: "Parque La Granja", address: "Camino de Cabaldos", district: "San José", lat: 41.635784, lng: -0.869242, description: "Próximo al Pabellón Príncipe Felipe. Atravesado por una acequia que forma un pequeño estanque y mural con restos arqueológicos." },
+            { title: "Parque lineal del río Ebro Margen izquierda", address: "Puente del Pilar - Puente de la Unión", district: "El Rabal", lat: 41.654447, lng: -0.864661, description: "Parque de ribera con gran superficie de pradera, arbolado típico de ribera y pinos." },
+            { title: "Parque Lineal del río Huerva / Parque del Azud", address: "Camino Las Torres", district: "Casco Histórico", lat: 41.650094, lng: -0.866199, description: "Da continuación al Parque Bruil en la desembocadura del Huerva. Disfruta de arbolado de gran porte." },
+            { title: "Parque Macanaz", address: "C/ García Arista", district: "El Rabal", lat: 41.659763, lng: -0.878250, description: "Trazado paralelo al río Ebro, ocupado por una gran superficie de pinos bien consolidados y caseta observatorio." },
+            { title: "Parque Vistabella", address: "C/ Ibón de Plan", district: "Miralbueno", lat: 41.658824, lng: -0.932805, description: "Amplia superficie verde con zonas de rosales, juegos infantiles, mesas de mus y fuentes ornamentales." },
+            { title: "Parque de las Garzas", address: "C/ Río Gállego", district: "Peñaflor", lat: 41.760917, lng: -0.798797, description: "Parque situado en el área de Peñaflor." },
+            { title: "Jardín del Portazgo", address: "Camino Pilón", district: "Miralbueno", lat: 41.658417, lng: -0.930465, description: "Espacio ajardinado ubicado en la zona del Camino del Pilón." },
+            { title: "Parque Goya", address: "C/ El Coloso, 5", district: "El Rabal", lat: 41.681601, lng: -0.871900, description: "Parque principal del barrio Parque Goya." },
+            { title: "Anfiteatro del Parque Delicias", address: "C/ Duquesa Villahermosa", district: "Delicias", lat: 41.651171, lng: -0.909030, description: "Zona del anfiteatro ubicada en el interior del gran Parque Delicias." },
+            { title: "Jardines de la Taifa de Saraqusta", address: "C/ Olof Palme", district: "Universidad", lat: 41.640769, lng: -0.907136, description: "Jardín rectangular con estanque en forma de árbol y pistas de tanguillo." },
+            { title: "Parque Bruil (Árbol de los Cuentos)", address: "C. Asalto, s/n", district: "Casco Histórico", lat: 41.649284, lng: -0.871760, description: "Próximo al casco viejo, con más de 30.000 m2. Contiene restos del Molino de Goicoechea." },
+            { title: "Parque Cabezo Buena Vista", address: "Pº Isabel La Católica", district: "Universidad", lat: 41.635567, lng: -0.900409, description: "Integrado en el Parque Grande, alberga la Estatua del Batallador y grandes praderas." },
+            { title: "Parque de Alfocea", address: "Barrio bajo - C/ La Iglesia", district: "Alfocea", lat: 41.724025, lng: -0.951560, description: "Espacio verde en el barrio de Alfocea, con arbolado joven y juegos infantiles." }]
